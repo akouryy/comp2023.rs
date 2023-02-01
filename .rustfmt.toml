@@ -1,0 +1,3 @@
+# brace_style = "PreferSameLine"
+# fn_single_line = true
+use_small_heuristics = "Max"

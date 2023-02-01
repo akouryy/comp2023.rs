@@ -1,0 +1,23 @@
+{
+	"Tree Library": {
+		"scope": "rust",
+		"prefix": "@tree",
+		"body": [
+			"trait TreeExt {",
+			"\tfn tree_diameter_nlogn(&self) -> usize;",
+			"}",
+			"",
+			"impl<N, E, Ix> TreeExt for UnGraph<N, E, Ix>",
+			"where",
+			"\tIx: IndexType,",
+			"{",
+			"\tfn tree_diameter_nlogn(&self) -> usize {",
+			"\t\tlet src = self.node_references().next().unwrap().0;",
+			"\t\tlet src = *dijkstra(&self, src, None, |_| 1).iter().max_by_key(|e| e.1).unwrap().0;",
+			"\t\t*dijkstra(&self, src, None, |_| 1).iter().max_by_key(|e| e.1).unwrap().1",
+			"\t}",
+			"}",
+		],
+		"description": "Tree Library"
+	},
+}
