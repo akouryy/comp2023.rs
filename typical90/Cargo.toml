@@ -1,3 +1,6 @@
+[profile.dev]
+overflow-checks = false
+
 [package]
 name = "typical90"
 version = "0.1.0"
