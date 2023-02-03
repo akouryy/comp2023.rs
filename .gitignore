@@ -3,4 +3,9 @@
 /compete.toml
 /target/
 /template-cargo-lock.toml
+abl/src/bin/a.rs
+abl/src/bin/b.rs
+abl/src/bin/c.rs
+abl/src/bin/d.rs
+abl/src/bin/f.rs
 Cargo.lock

@@ -8,6 +8,7 @@
 )]
 
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use num::Num;
 use petgraph::prelude::*;
 use proconio::{fastout, input, marker::Usize1};
@@ -21,21 +22,51 @@ use std::{
 const IINF: isize = 1 << 60;
 const UINF: usize = 1 << 60;
 const EPS: f64 = 1e-20;
-const MOD: usize = 1e9 as usize + 7;
+const MOD: usize = 998244353;
+
+macro_rules! d {
+    ($x0:expr $(, $xs:expr)* $(,)?) => {
+        #[cfg(debug_assertions)]
+        eprintln!(concat!(stringify!($x0), "={:?}", $(",  ", stringify!($xs), "={:?}"), *), &$x0, $(&$xs),*);
+    };
+}
+
+fn powmod(a: usize, b: usize, m: usize) -> usize {
+    if b == 0 {
+        1
+    } else if b % 2 == 0 {
+        powmod(a * a % m, b / 2, m)
+    } else {
+        a * powmod(a, b - 1, m) % m
+    }
+}
+
+lazy_static! {
+    static ref TO10: Vec<usize> = {
+        let mut v = vec![1];
+        for i in 1..=2000005 {
+            v.push(v[i - 1] * 10 % MOD);
+        }
+        v
+    };
+    static ref INV9: usize = powmod(9, MOD - 2, MOD);
+}
 
 trait Monoid {
-    type Val: Clone + Eq;
+    type Val: Clone + fmt::Debug + Eq;
     fn op(a: &Self::Val, b: &Self::Val) -> Self::Val;
     fn id() -> Self::Val;
 }
-struct MaxMonoid {}
-impl Monoid for MaxMonoid {
-    type Val = usize;
-    fn op(a: &usize, b: &usize) -> usize {
-        *a.max(b)
+struct MyMonoid {}
+impl Monoid for MyMonoid {
+    type Val = (usize, usize); // (剰余, 要素数)
+    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val {
+        let (ar, ac) = a;
+        let &(br, bc) = b;
+        ((ar * TO10[bc] + br) % MOD, ac + bc)
     }
-    fn id() -> usize {
-        0
+    fn id() -> Self::Val {
+        (0, 0)
     }
 }
 struct RightMonoid {}
@@ -48,6 +79,7 @@ impl Monoid for RightMonoid {
         0
     }
 }
+
 /// 遅延セグメント木
 /// - `(M, ⊕)`, `(Lazy, ∘)`はモノイド (可換とは限らない)。
 /// - 準同型性α: `apply(apply(m,l1),l2) = apply(m,l1∘l2)`
@@ -190,16 +222,17 @@ where
 #[fastout]
 fn main() {
     input! {
-        W: usize,
         N: usize,
-        LR: [(Usize1, usize); N],
+        Q: usize,
+        LRD: [(Usize1, usize, usize); Q],
     }
 
-    let mut st = SegmentTree::<MaxMonoid, RightMonoid>::new(W, |&_, &l| l);
-    for (l, r) in LR {
-        let h = st.query(l..r) + 1;
-        st.update(l..r, h);
-        // eprintln!("{:?}", st);
-        println!("{}", h);
+    let mut st = SegmentTree::<MyMonoid, RightMonoid>::new_with_data(vec![(1, 1); N], |&(_, c), &l| {
+        (l * (TO10[c] + MOD - 1) % MOD * *INV9 % MOD, c)
+    });
+
+    for &(l, r, d) in LRD.iter() {
+        st.update(l..r, d);
+        println!("{}", st.query(0..N).0);
     }
 }
