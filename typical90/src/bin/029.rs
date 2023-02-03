@@ -52,8 +52,8 @@ where
     n: usize,
     height: usize,
     apply: fn(&M::Val, &Lazy::Val) -> M::Val,
-    data: Vec<M::Val>,
-    lazy: Vec<Lazy::Val>,
+    data: Vec<M::Val>,    // 1-based index
+    lazy: Vec<Lazy::Val>, // 1-based index
 }
 impl<M, Lazy> SegmentTree<M, Lazy>
 where
@@ -63,16 +63,16 @@ where
     fn new(n: usize, apply: fn(&M::Val, &Lazy::Val) -> M::Val) -> Self {
         let n = n.next_power_of_two();
         let height = (0..62).find(|&x| n == 1 << x).unwrap() + 1;
-        Self { n, height, apply, data: vec![M::id(); 2 * n - 1], lazy: vec![Lazy::id(); 2 * n - 1] }
+        Self { n, height, apply, data: vec![M::id(); 2 * n], lazy: vec![Lazy::id(); 2 * n] }
     }
     #[inline(always)]
     fn propagate(&mut self, k: usize) {
         if self.lazy[k] == Lazy::id() {
             return;
         }
-        if k < self.n - 1 {
-            self.lazy[(k << 1) + 1] = Lazy::op(&self.lazy[(k << 1) + 1], &self.lazy[k]);
-            self.lazy[(k << 1) + 2] = Lazy::op(&self.lazy[(k << 1) + 2], &self.lazy[k]);
+        if k < self.n {
+            self.lazy[k << 1] = Lazy::op(&self.lazy[k << 1], &self.lazy[k]);
+            self.lazy[k << 1 | 1] = Lazy::op(&self.lazy[k << 1 | 1], &self.lazy[k]);
         }
         self.data[k] = (self.apply)(&self.data[k], &self.lazy[k]);
         self.lazy[k] = Lazy::id();
@@ -82,8 +82,8 @@ where
         let l = range.start + self.n;
         let r = range.end + self.n - 1;
         for d in (0..self.height).rev() {
-            self.propagate((l >> d) - 1);
-            self.propagate((r >> d) - 1);
+            self.propagate(l >> d);
+            self.propagate(r >> d);
         }
     }
     fn query(&mut self, range: Range<usize>) -> M::Val {
@@ -93,15 +93,17 @@ where
         let mut ans = M::id();
         while l <= r {
             if l & 1 == 1 {
-                self.propagate(l - 1);
-                ans = M::op(&ans, &self.data[l - 1]);
+                self.propagate(l);
+                ans = M::op(&ans, &self.data[l]);
+                l += 1;
             }
             if r & 1 == 0 {
-                self.propagate(r - 1);
-                ans = M::op(&ans, &self.data[r - 1]);
+                self.propagate(r);
+                ans = M::op(&ans, &self.data[r]);
+                r -= 1;
             }
-            l = (l + 1) >> 1;
-            r = (r - 1) >> 1;
+            l >>= 1;
+            r >>= 1;
         }
         ans
     }
@@ -111,26 +113,28 @@ where
         let mut r = range.end + self.n - 1;
         while l <= r {
             if l & 1 == 1 {
-                self.lazy[l - 1] = Lazy::op(&self.lazy[l - 1], &val);
-                self.propagate(l - 1);
+                self.lazy[l] = Lazy::op(&self.lazy[l], &val);
+                self.propagate(l);
+                l += 1;
             }
             if r & 1 == 0 {
-                self.lazy[r - 1] = Lazy::op(&self.lazy[r - 1], &val);
-                self.propagate(r - 1);
+                self.lazy[r] = Lazy::op(&self.lazy[r], &val);
+                self.propagate(r);
+                r -= 1;
             }
-            l = (l + 1) >> 1;
-            r = (r - 1) >> 1;
+            l >>= 1;
+            r >>= 1;
         }
         let l = range.start + self.n;
         let r = range.end + self.n - 1;
         for d in 1..self.height {
             if l & ((1 << d) - 1) != 0 {
-                let ll = (l >> d) - 1;
-                self.data[ll] = M::op(&self.data[(ll << 1) + 1], &self.data[(ll << 1) + 2]);
+                let ll = l >> d;
+                self.data[ll] = M::op(&self.data[ll << 1], &self.data[ll << 1 | 1]);
             }
             if (r + 1) & ((1 << d) - 1) != 0 {
-                let rr = (r >> d) - 1;
-                self.data[rr] = M::op(&self.data[(rr << 1) + 1], &self.data[(rr << 1) + 2]);
+                let rr = r >> d;
+                self.data[rr] = M::op(&self.data[rr << 1], &self.data[rr << 1 | 1]);
             }
         }
     }
@@ -143,8 +147,13 @@ where
     Lazy::Val: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let strs =
-            self.data.iter().zip(self.lazy.iter()).map(|(d, l)| format!("{:?}/{:?},", d, l)).collect_vec();
+        let strs = self
+            .data
+            .iter()
+            .zip(self.lazy.iter())
+            .skip(1)
+            .map(|(d, l)| format!("{:?}/{:?},", d, l))
+            .collect_vec();
         let len = strs.iter().map(|s| s.len()).max().unwrap() + 1;
         for d in 0..self.height {
             for c in strs.iter().take((1 << (d + 1)) - 1).skip((1 << d) - 1) {
