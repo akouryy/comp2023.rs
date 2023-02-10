@@ -170,7 +170,7 @@
 			"\t\t*a + *b",
 			"\t}",
 			"\tfn id() -> Self::Val {",
-			"\t\tN::zero()",
+			"\t\tSelf::Val::zero()",
 			"\t}",
 			"}",
 		],
