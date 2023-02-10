@@ -8,14 +8,10 @@
 )]
 
 use itertools::Itertools;
-use num::Num;
 use petgraph::{prelude::*, stable_graph::IndexType, visit::IntoNodeReferences};
 use proconio::{input, marker::Usize1};
 use rand::Rng;
-use std::{
-    cmp::{max, min},
-    ops::Range,
-};
+use std::cmp::{max, min};
 
 const IINF: isize = 1 << 60;
 const UINF: usize = 1 << 60;
@@ -34,28 +30,33 @@ trait Monoid {
     fn op(a: &Self::Val, b: &Self::Val) -> Self::Val;
     fn id() -> Self::Val;
 }
-struct MaxMonoid;
-// impl Monoid for MaxMonoid {
-//     type Val = (isize, Vec<isize>);
-//     fn op(a: &Self::Val, b: &Self::Val) -> Self::Val {
-//         if a.0 > b.0 {
-//             a.clone()
-//         } else {
-//             b.clone()
-//         }
-//     }
-//     fn id() -> Self::Val {
-//         (-IINF, vec![])
-//     }
-// }
-impl Monoid for MaxMonoid {
-    type Val = isize;
-    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val {
-        max(*a, *b)
-    }
-    fn id() -> Self::Val {
-        -IINF
-    }
+struct AddMonoid<N>(std::marker::PhantomData<fn() -> N>);
+#[rustfmt::skip]
+impl<N> Monoid for AddMonoid<N> where N: Copy + num::Zero + std::cmp::Eq + std::ops::Add {
+    type Val = N;
+    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val { *a + *b }
+    fn id() -> Self::Val { Self::Val::zero() }
+}
+struct MulMonoid<N>(std::marker::PhantomData<fn() -> N>);
+#[rustfmt::skip]
+impl<N> Monoid for MulMonoid<N> where N: Copy + num::One + std::cmp::Eq + std::ops::Mul {
+    type Val = N;
+    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val { *a * *b }
+    fn id() -> Self::Val { Self::Val::one() }
+}
+struct MinMonoid<N = usize>(std::marker::PhantomData<fn() -> N>);
+#[rustfmt::skip]
+impl<N> Monoid for MinMonoid<N> where N: Copy + num::Bounded + num::FromPrimitive + num::Num + std::cmp::Ord {
+    type Val = N;
+    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val { min(*a, *b) }
+    fn id() -> Self::Val { Self::Val::max_value() / Self::Val::from_i8(8).unwrap() }
+}
+struct MaxMonoid<N = usize>(std::marker::PhantomData<fn() -> N>);
+#[rustfmt::skip]
+impl<N> Monoid for MaxMonoid<N> where N: Copy + num::Bounded + num::FromPrimitive + num::Num + std::cmp::Ord {
+    type Val = N;
+    fn op(a: &Self::Val, b: &Self::Val) -> Self::Val { max(*a, *b) }
+    fn id() -> Self::Val { Self::Val::min_value() / Self::Val::from_i8(8).unwrap() }
 }
 /// 遅延セグメント木
 /// - `(M, ⊕)`, `(Lazy, ∘)`はモノイド (可換とは限らない)。
@@ -105,7 +106,7 @@ where
         self.lazy[k] = Lazy::id();
     }
     #[inline(always)]
-    fn propagate_all(&mut self, range: &Range<usize>) {
+    fn propagate_all(&mut self, range: &std::ops::Range<usize>) {
         let l = range.start + self.n;
         let r = range.end + self.n - 1;
         for d in (0..self.height).rev() {
@@ -115,7 +116,7 @@ where
             self.propagate(r >> d ^ 1); // XXX
         }
     }
-    fn query(&mut self, range: Range<usize>) -> M::Val {
+    fn query(&mut self, range: std::ops::Range<usize>) -> M::Val {
         self.propagate_all(&range);
         let mut l = range.start + self.n;
         let mut r = range.end + self.n - 1;
@@ -137,7 +138,7 @@ where
         }
         M::op(&ans_l, &ans_r)
     }
-    fn update(&mut self, range: Range<usize>, val: Lazy::Val) {
+    fn update(&mut self, range: std::ops::Range<usize>, val: Lazy::Val) {
         self.propagate_all(&range);
         let mut l = range.start + self.n;
         let mut r = range.end + self.n - 1;
@@ -205,7 +206,7 @@ fn main() {
     }
 
     // TODO: new_with_assignment
-    let mut seg = SegmentTree::<MaxMonoid, MaxMonoid>::new(W + 1, MaxMonoid::op);
+    let mut seg = SegmentTree::<MaxMonoid<isize>, MaxMonoid<isize>>::new(W + 1, MaxMonoid::op);
     seg.update(0..1, 0);
 
     for (L, R, V) in LRV {
