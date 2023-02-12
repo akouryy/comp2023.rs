@@ -7,18 +7,14 @@
     clippy::upper_case_acronyms
 )]
 
-use itertools::{izip, Itertools};
-use petgraph::{
-    prelude::*,
-    stable_graph::IndexType,
-    visit::{depth_first_search, IntoNodeReferences},
+use itertools::{iproduct, izip, Itertools};
+use petgraph::{prelude::*, stable_graph::IndexType, visit::IntoNodeReferences};
+use proconio::{
+    input,
+    marker::{Bytes, Chars, Usize1},
 };
-use proconio::{input, marker::Usize1};
 use rand::Rng;
-use std::{
-    cmp::{max, min},
-    collections::HashMap,
-};
+use std::cmp::{max, min};
 
 const IINF: isize = 1 << 60;
 const UINF: usize = 1 << 60;
@@ -112,22 +108,46 @@ fn dinic(G: &DiGraph<(), usize, usize>, start: usize, goal: usize) -> (usize, Ve
 fn main() {
     input! {
         N: usize,
-        W: usize,
-        A: [usize; N],
-        C: [[Usize1]; N],
+        M: usize,
+        S: [Chars; N],
     }
 
-    let start = N;
-    let goal = N + 1;
-
-    let G = DiGraph::from_edges(
-        (0..N)
-            .map(|i| (start, i, A[i]))
-            .chain((0..N).map(|i| (i, goal, W)))
-            .chain((0..N).flat_map(|i| C[i].iter().map(move |&j| (j, i, UINF)))),
-    );
-
-    let (flow, _) = dinic(&G, start, goal);
-
-    println!("{}", A.iter().sum::<usize>() - flow);
+    let start = N * M;
+    let goal = N * M + 1;
+    let G = DiGraph::from_edges(iproduct!(0..N, 0..M).flat_map(|(i, j)| {
+        if S[i][j] == '#' {
+            vec![]
+        } else if (i + j) % 2 == 0 {
+            let mut a = vec![(start, i * M + j, 1)];
+            const D4: [(isize, isize); 4] = [(1, 0), (0, 1), (!0, 0), (0, !0)];
+            for &(di, dj) in D4.iter() {
+                let ii = (i as isize + di) as usize;
+                let jj = (j as isize + dj) as usize;
+                if ii < N && jj < M {
+                    a.push((i * M + j, ii * M + jj, 1));
+                }
+            }
+            a
+        } else {
+            vec![(i * M + j, goal, 1)]
+        }
+    }));
+    let (flow, used_edges) = dinic(&G, start, goal);
+    let mut ans = S;
+    for &((u, v), _) in used_edges.iter() {
+        if u < start && v < start {
+            let ui = u / M;
+            let uj = u % M;
+            let vi = v / M;
+            let vj = v % M;
+            if ui == vi {
+                ans[ui][min(uj, vj)] = '>';
+                ans[ui][max(uj, vj)] = '<';
+            } else {
+                ans[min(ui, vi)][uj] = 'v';
+                ans[max(ui, vi)][uj] = '^';
+            }
+        }
+    }
+    println!("{}\n{}", flow, ans.iter().map(|l| l.iter().join("")).join("\n"));
 }
