@@ -7,18 +7,11 @@
     clippy::upper_case_acronyms
 )]
 
-use itertools::{izip, Itertools};
-use petgraph::{
-    prelude::*,
-    stable_graph::IndexType,
-    visit::{depth_first_search, IntoNodeReferences},
-};
+use itertools::{iproduct, izip, Itertools};
+use petgraph::{prelude::*, stable_graph::IndexType, visit::IntoNodeReferences};
 use proconio::{input, marker::Usize1};
 use rand::Rng;
-use std::{
-    cmp::{max, min},
-    collections::HashMap,
-};
+use std::cmp::{max, min};
 
 const IINF: isize = 1 << 60;
 const UINF: usize = 1 << 60;
@@ -35,7 +28,7 @@ macro_rules! d {
 fn dinic(G: &DiGraph<(), usize, usize>, start: usize, goal: usize) -> (usize, Vec<((usize, usize), usize)>) {
     let nv = G.node_count();
     let mut edge_list = vec![vec![]; nv];
-    let mut flow = 0;
+    let mut maxflow = 0;
     if start < nv && goal < nv {
         for e in G.raw_edges().iter() {
             let (i, j) = (e.source().index(), e.target().index());
@@ -47,10 +40,13 @@ fn dinic(G: &DiGraph<(), usize, usize>, start: usize, goal: usize) -> (usize, Ve
             let mut dist = vec![-1; nv];
             dist[start] = 0;
             let mut bfs = std::collections::VecDeque::from(vec![start]);
-            while let Some(i) = bfs.pop_front() {
+            'bfs: while let Some(i) = bfs.pop_front() {
                 for &(j, c, _, _) in edge_list[i].iter() {
                     if c > 0 && dist[j] < 0 {
                         dist[j] = dist[i] + 1;
+                        if j == goal {
+                            break 'bfs;
+                        }
                         bfs.push_back(j);
                     }
                 }
@@ -58,42 +54,42 @@ fn dinic(G: &DiGraph<(), usize, usize>, start: usize, goal: usize) -> (usize, Ve
             if dist[goal] < 0 {
                 break;
             }
-            // while(false)
-            'flowUpdates: while {
-                let mut path = Vec::<(usize, usize)>::new();
-                let mut dfs = vec![Some((start, None))];
-                while let Some(next) = dfs.pop() {
-                    match next {
-                        Some((i, from)) => {
-                            if let Some((h, ehi)) = from {
-                                path.push((h, ehi));
-                            }
-                            if i == goal {
-                                let f = path.iter().map(|&(j, ejk)| edge_list[j][ejk].1).min().unwrap();
-                                if f > 0 {
-                                    flow += f;
-                                    path.iter().for_each(|&(j, ejk)| {
-                                        let (k, _, ekj, _) = edge_list[j][ejk];
-                                        edge_list[j][ejk].1 -= f;
-                                        edge_list[k][ekj].1 += f;
-                                    });
-                                    continue 'flowUpdates;
+            let mut path = Vec::<(usize, usize)>::new();
+            let mut dfs = vec![Some((start, None))];
+            while let Some(next) = dfs.pop() {
+                if let Some((i, from)) = next {
+                    path.extend(from);
+                    if i == goal {
+                        let (f, prune_under) = path
+                            .iter()
+                            .map(|&(j, ejk)| (edge_list[j][ejk].1, edge_list[j][ejk].0))
+                            .min()
+                            .unwrap();
+                        maxflow += f;
+                        path.iter().for_each(|&(j, ejk)| {
+                            let (k, _, ekj, _) = edge_list[j][ejk];
+                            edge_list[j][ejk].1 -= f;
+                            edge_list[k][ekj].1 += f;
+                        });
+                        if prune_under != i {
+                            while {
+                                match dfs.pop().unwrap() {
+                                    Some((_, _)) => true,
+                                    None => path.pop().unwrap().0 != prune_under,
                                 }
-                            }
-                            dfs.push(None);
-                            for (eij, &(j, c, _, _)) in edge_list[i].iter().enumerate() {
-                                if c > 0 && dist[i] < dist[j] {
-                                    dfs.push(Some((j, Some((i, eij)))));
-                                }
-                            }
-                        }
-                        None => {
-                            path.pop();
+                            } {}
                         }
                     }
+                    dfs.push(None);
+                    for (eij, &(j, c, _, _)) in edge_list[i].iter().enumerate() {
+                        if c > 0 && dist[i] < dist[j] {
+                            dfs.push(Some((j, Some((i, eij)))));
+                        }
+                    }
+                } else {
+                    path.pop();
                 }
-                false
-            } {}
+            }
         }
     }
     let used_edges = edge_list
@@ -104,7 +100,7 @@ fn dinic(G: &DiGraph<(), usize, usize>, start: usize, goal: usize) -> (usize, Ve
                 .flat_map(move |&(i, c, _, dir)| if dir == Incoming && c > 0 { Some(((i, j), c)) } else { None })
         })
         .collect();
-    (flow, used_edges)
+    (maxflow, used_edges)
 }
 
 #[deny(dead_code)]
